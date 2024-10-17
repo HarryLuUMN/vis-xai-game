@@ -1,0 +1,6 @@
+# prop_name, value
+name,dutch_school (klas12b-net-1)
+description,"A series of snapshots of the friendships among freshmen at secondary school in The Netherlands, in 2003-2004. Friendship ties were surveyed four times, at three month intervals. The direction of an edge indicates that student i is friends with student j. Missing data is coded as 0 or 10. Metadata includes sex, age, ethnicity, and religion."
+citation,"['T. Snijders, G. van de Bunt, and C. Steglich, \"Introduction to stochastic actor-based models for network dynamics.\" Social Networks 32(1), 44-60 (2010), http://www.sciencedirect.com/science/article/pii/S0378873309000069']"
+url,http://www.stats.ox.ac.uk/~snijders/siena/tutorial2010_data.htm
+tags,"['Social', 'Offline', 'Unweighted', 'Metadata', 'Temporal']"
