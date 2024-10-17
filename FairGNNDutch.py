@@ -1,7 +1,7 @@
 #%%
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GATConv, GCNConv
+from torch_geometric.nn import GATConv, GCNConv, Linear
 from torch_geometric.data import Data
 import json
 from Sampling import undersample
@@ -38,13 +38,10 @@ import torch
 import numpy as np
 
 def generate_random_mask(num_nodes, train_ratio=0.6, val_ratio=0.2):
-    # 生成一个全节点的索引
     all_indices = np.arange(num_nodes)
 
-    # 随机打乱索引
     np.random.shuffle(all_indices)
 
-    # 根据比例划分训练、验证和测试集
     num_train = int(train_ratio * num_nodes)
     num_val = int(val_ratio * num_nodes)
     num_test = num_nodes - num_train - num_val
@@ -52,23 +49,18 @@ def generate_random_mask(num_nodes, train_ratio=0.6, val_ratio=0.2):
     train_indices = all_indices[:num_train]
     val_indices = all_indices[num_train:num_train + num_val]
     test_indices = all_indices[num_train + num_val:]
-
-    # 创建训练、验证和测试掩码
     train_mask = torch.zeros(num_nodes, dtype=torch.bool)
     val_mask = torch.zeros(num_nodes, dtype=torch.bool)
     test_mask = torch.zeros(num_nodes, dtype=torch.bool)
 
-    # 将掩码置为True
     train_mask[train_indices] = True
     val_mask[val_indices] = True
     test_mask[test_indices] = True
 
     return train_mask, val_mask, test_mask
 
-# 假设图中有num_nodes个节点
 num_nodes = 26
 
-# 生成随机掩码
 train_mask, val_mask, test_mask = generate_random_mask(num_nodes, train_ratio=0.6, val_ratio=0.2)
 print(train_mask, val_mask, test_mask)
 
@@ -80,8 +72,9 @@ print(train_mask)
 class GCN(torch.nn.Module):
     def __init__(self):
         super(GCN, self).__init__()
-        self.conv1 = GATConv(in_channels=x.size(1), out_channels=16)
-        self.conv2 = GATConv(16, 5)
+        self.conv1 = GCNConv(in_channels=x.size(1), out_channels=64)
+        self.conv2 = GCNConv(64, 32)
+        self.classifier = Linear(32, 5)
         self.dropout = torch.nn.Dropout(p=0.5)
 
     def forward(self, data):
@@ -90,7 +83,8 @@ class GCN(torch.nn.Module):
         x = F.relu(x)
         # x = self.dropout(x)
         x = self.conv2(x, edge_index)
-        # x = self.dropout(x)
+        x = F.relu(x)
+        x = self.classifier(x)
         return F.log_softmax(x, dim=1)
 
 #%%
@@ -111,27 +105,8 @@ def get_weighted_loss(data, max_weight=10.0):
     print(f'Class Weights: {weights}')
     return weights
 
-# 使用加权损失
 label_counts = Counter(graph_data.y.tolist())
-class_weights = get_weighted_loss(graph_data, max_weight=1.)
-
-def train():
-    model.train()
-    optimizer.zero_grad()
-    out = model(data)
-    loss = F.nll_loss(out[train_mask], graph_data.y[train_mask])
-    loss.backward()
-    optimizer.step()
-    return loss.item()
-
-#%%
-def test():
-    model.eval()
-    out = model(data)
-    pred = out.argmax(dim=1)
-    correct = (pred[data.test_mask] == data.y[data.test_mask]).sum()
-    acc = int(correct) / int(data.test_mask.sum())
-    return acc
+class_weights = get_weighted_loss(graph_data, max_weight=10)
 
 # %%
 import torch
@@ -154,7 +129,7 @@ def cross_validation(graph_data, k_folds=5, epochs=200):
             model.train()
             optimizer.zero_grad()
             out = model(graph_data)
-            loss = F.nll_loss(out[train_mask], graph_data.y[train_mask])
+            loss = F.nll_loss(out[train_mask], graph_data.y[train_mask], weight=class_weights)
             loss.backward()
             optimizer.step()
 
@@ -222,3 +197,20 @@ accuracy = correct / y.size(0)
 print(f'Accuracy: {accuracy:.4f}')
 
 #%%
+# Save the model
+model_path = 'gcn_model.pth'
+torch.save(model.state_dict(), model_path)
+print(f'Model saved to {model_path}')
+# %%
+# Load the model
+model = GCN().to(device)
+model.load_state_dict(torch.load(model_path))
+model.eval()
+
+# Predict on graph_data
+predictions = get_predictions_on_full_dataset(model, graph_data)
+print("Predictions for the entire dataset after loading the model:")
+print(predictions.cpu().numpy())
+# %%
+
+

@@ -12,11 +12,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import accuracy_score
+import json
 
 #%%
 # Load the Karate Club dataset
-dataset = KarateClub()
-data = dataset[0]
+# Load the JSON file
+with open('DutchSchoolDataset/json/net1.json', 'r') as f:
+    json_data = json.load(f)
+
+# Transform JSON data into a PyTorch Geometric Data object
+edge_index = torch.tensor(json_data['edge_index'], dtype=torch.long)
+x = torch.tensor(json_data['x'], dtype=torch.float)
+y = torch.tensor(json_data['y'], dtype=torch.long)
+
+data = Data(x=x, edge_index=edge_index, y=y)
+
 
 # Manually create train/val/test masks
 num_nodes = data.num_nodes
@@ -29,9 +39,9 @@ train_mask[:int(num_nodes * 0.6)] = True
 val_mask[int(num_nodes * 0.6):int(num_nodes * 0.8)] = True
 test_mask[int(num_nodes * 0.8):] = True
 
-data.train_mask = train_mask
-data.val_mask = val_mask
-data.test_mask = test_mask
+data.train_mask = train_mask.unsqueeze(1).expand(-1, 10)
+data.val_mask = val_mask.unsqueeze(1).expand(-1, 10)
+data.test_mask = test_mask.unsqueeze(1).expand(-1, 10)
 
 # Assume we divide nodes into two groups based on their degree
 degree = data.edge_index[0].bincount()  # Calculate node degrees
@@ -39,9 +49,11 @@ threshold = degree.median()  # Use median degree as threshold to create two grou
 group_0 = (degree <= threshold)  # Low-degree group
 group_1 = (degree > threshold)   # High-degree group
 
+print(data)
+
 #%%
 # Visualize the Karate Club graph and mark groups and prediction masks
-G = nx.karate_club_graph()
+G = nx.from_edgelist(edge_index.t().tolist())
 plt.figure(figsize=(10, 8))
 
 # Set node colors based on group membership and prediction masks
@@ -90,10 +102,10 @@ class GCN(nn.Module):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
-        return F.log_softmax(x, dim=1)
+        return x  # Remove log_softmax for raw logits
 
 # Initialize the model, optimizer, and loss function
-model = GCN(input_dim=data.num_node_features, hidden_dim=16, output_dim=dataset.num_classes)
+model = GCN(input_dim=4, hidden_dim=16, output_dim=10)  # Change output_dim to 10
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 criterion = nn.CrossEntropyLoss()
 
@@ -103,6 +115,7 @@ def train():
     model.train()
     optimizer.zero_grad()
     out = model(data)
+    print(f"Train mask shape: {data.train_mask.shape}; Out Shape: {out.shape}")
     loss = criterion(out[data.train_mask], data.y[data.train_mask])
     loss.backward()
     optimizer.step()
@@ -112,7 +125,7 @@ def train():
 # Testing the model and evaluating fairness
 def test():
     model.eval()
-    out = model(data)
+    out = model(data).squeeze(0)
     pred = out.argmax(dim=1)
 
     # Accuracy for entire test set

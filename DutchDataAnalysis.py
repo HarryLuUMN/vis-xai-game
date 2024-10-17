@@ -103,44 +103,33 @@ print(demo_data, delin_data)
 import matplotlib.colors as mcolors
 
 def visualize_temporal_attributes_network(adj_matrix, attributes_table):
-    # 将邻接矩阵转为 NumPy 数组
     adj_matrix = np.array(adj_matrix)
-    
-    # 根据邻接矩阵创建图
+
     G = nx.from_numpy_array(adj_matrix)
 
-    # 计算图节点的布局（保持布局一致性）
     pos = nx.spring_layout(G)
 
-    # 创建颜色映射器，将属性值1-5映射为特定的颜色
-    cmap = plt.get_cmap('viridis', 5)  # 使用 'viridis' colormap，并分为5个离散区间
-    norm = mcolors.BoundaryNorm(boundaries=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5], ncolors=5)  # 设置属性值的区间
-    
-    # 遍历属性表的每个时间点
+    cmap = plt.get_cmap('viridis', 5)  
+    norm = mcolors.BoundaryNorm(boundaries=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5], ncolors=5)  
+
     for i, attributes in enumerate(attributes_table):
         plt.figure()
-        
-        # 根据属性值设置节点颜色
+
         node_colors = [cmap(norm(attr)) for attr in attributes]
         
-        # 绘制节点
         nx.draw_networkx_nodes(G, pos, node_color=node_colors, cmap=cmap)
         
-        # 绘制边
         nx.draw_networkx_edges(G, pos)
         
-        # 绘制节点标签
         nx.draw_networkx_labels(G, pos)
         
-        # 添加标题
         plt.title(f'Network Visualization at Time {i+1}')
         
-        # 显示颜色条
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])  # 空数组用于颜色条
+        sm.set_array([])  
         plt.colorbar(sm, ticks=[1, 2, 3, 4, 5], label='Node Attributes')
         
-        # 显示图
+
         plt.show()
 
 
